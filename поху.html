@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Valentine — просто</title>
+    <style>
+        * {
+            image-rendering: pixelated;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: monospace;
+            overflow: hidden;
+            background: #87c5ff;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+            touch-action: pan-y pinch-zoom;
+        }
+
+        /* падающие иконки */
+        .background span {
+            position: absolute;
+            animation: fall linear infinite;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        @keyframes fall {
+            from { transform: translateY(-10vh); }
+            to { transform: translateY(110vh); }
+        }
+
+        .center {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            pointer-events: none;
+        }
+
+        .center > * {
+            pointer-events: auto;
+        }
+
+        /* КОНВЕРТ — фиксированные размеры как в оригинале */
+        .envelope {
+            position: relative;
+            width: 360px;
+            height: 240px;
+            background: #e5e5e5;
+            border: 8px solid #000;
+            box-shadow: 16px 16px 0 #000;
+            text-align: center;
+            padding-top: 90px;
+            margin: 0 auto;
+            flex-shrink: 0;
+        }
+
+        .lid {
+            position: absolute;
+            top: -120px;
+            left: -8px;
+            width: calc(100% + 16px);
+            height: 120px;
+            background:
+                linear-gradient(135deg, #dcdcdc 25%, transparent 25%) -20px 0,
+                linear-gradient(225deg, #dcdcdc 25%, transparent 25%) -20px 0,
+                linear-gradient(315deg, #dcdcdc 25%, transparent 25%),
+                linear-gradient(45deg, #dcdcdc 25%, transparent 25%);
+            background-size: 40px 40px;
+            background-color: #dcdcdc;
+            border: 8px solid #000;
+            box-sizing: content-box;
+        }
+
+        .heart {
+            position: absolute;
+            top: -55px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 54px;
+            text-shadow: 4px 4px 0 #000;
+        }
+
+        #question {
+            font-size: 24px;
+            margin: 0 0 20px 0;
+            word-break: break-word;
+        }
+
+        /* КНОПКИ — фиксированный размер, крупные для тыка */
+        button {
+            padding: 12px 24px;
+            margin: 8px 12px;
+            border: 2px solid black;
+            font-family: monospace;
+            font-size: 20px;
+            cursor: pointer;
+            background: #3cab3c;
+            color: white;
+            box-shadow: 5px 5px 0 #000;
+            min-width: 100px;
+            touch-action: manipulation;
+            transition: all 0.05s ease;
+        }
+
+        button:active {
+            transform: translate(4px, 4px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        /* кнопка НЕТ — будет двигаться медленно и плавно */
+        .no {
+            background: #777;
+            position: absolute !important;
+            left: 220px;        /* примерное положение справа от кнопки ДА */
+            top: 300px;          /* чтобы не налезала сразу */
+            transition: left 0.4s ease, top 0.4s ease; /* медленное и плавное движение */
+            will-change: left, top;
+            z-index: 1000;
+        }
+
+        /* карточка после ДА */
+        .card {
+            background: #fff;
+            border: 8px solid #000;
+            padding: 40px;
+            box-shadow: 16px 16px 0 #000;
+            max-width: 420px;
+            text-align: center;
+        }
+
+        .card p {
+            font-size: 20px;
+            line-height: 1.6;
+        }
+
+        .next {
+            margin-top: 20px;
+            font-size: 28px;
+            padding: 10px 30px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="background" id="bg"></div>
+
+<div class="center" id="main">
+    <div class="envelope" id="envelope">
+        <div class="lid"></div>
+        <div class="heart">❤️</div>
+
+        <h2 id="question">Будешь моей валентинкой?</h2>
+
+        <button onclick="accept()">Да</button>
+        <button class="no" id="noBtn">Нет</button>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // падающие иконки (сердечки и цветы)
+        const icons = ["❤️","💖","🌸","🌷","💐","💕","🌺"];
+        const bg = document.getElementById("bg");
+
+        for (let i = 0; i < 35; i++) {
+            let span = document.createElement("span");
+            span.innerHTML = icons[Math.floor(Math.random() * icons.length)];
+            span.style.left = Math.random() * 100 + "%";
+            span.style.animationDuration = (5 + Math.random() * 10) + "s";
+            span.style.fontSize = (20 + Math.random() * 28) + "px";
+            span.style.animationDelay = (Math.random() * 5) + "s";
+            bg.appendChild(span);
+        }
+
+        const noBtn = document.getElementById("noBtn");
+        let escapes = 0;
+        let moveTimer = null;
+
+        // Функция плавного отодвигания от точки (пальца или курсора)
+        function gentlyMoveAway(clientX, clientY) {
+            if (!noBtn || noBtn.style.display === 'none') return;
+
+            const btnRect = noBtn.getBoundingClientRect();
+            const btnCenterX = btnRect.left + btnRect.width / 2;
+            const btnCenterY = btnRect.top + btnRect.height / 2;
+
+            // дистанция от касания до центра кнопки
+            const dist = Math.hypot(clientX - btnCenterX, clientY - btnCenterY);
+
+            // если подошли близко (меньше 150px) — отодвигаемся
+            if (dist < 150) {
+                // новые координаты в пределах экрана с отступом
+                const maxX = window.innerWidth - btnRect.width - 20;
+                const maxY = window.innerHeight - btnRect.height - 20;
+                const minX = 20;
+                const minY = 60; // чтобы не улетела слишком высоко
+
+                const newX = Math.random() * (maxX - minX) + minX;
+                const newY = Math.random() * (maxY - minY) + minY;
+
+                noBtn.style.left = newX + 'px';
+                noBtn.style.top = newY + 'px';
+                noBtn.style.transform = 'none'; // убираем возможные смещения
+
+                escapes++;
+
+                // после 7 убеганий кнопка исчезает и меняется текст
+                if (escapes > 7) {
+                    noBtn.style.display = "none";
+                    document.getElementById("question").innerText = "Ладно ладно 😄 выбора нет";
+                }
+            }
+        }
+
+        // обработчик для мыши
+        document.addEventListener('mousemove', function(e) {
+            gentlyMoveAway(e.clientX, e.clientY);
+        });
+
+        // обработчик для касаний (медленный и плавный)
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault(); // предотвращаем скролл
+            if (e.touches.length > 0) {
+                gentlyMoveAway(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+        // также при touchstart сразу проверяем, чтобы кнопка убежала, если палец рядом
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 0) {
+                gentlyMoveAway(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+        // клик на саму кнопку "Нет" тоже засчитываем как побег
+        noBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            // сразу увеличиваем счётчик и прячем при необходимости
+            escapes++;
+            if (escapes > 7) {
+                noBtn.style.display = "none";
+                document.getElementById("question").innerText = "Ладно ладно 😄 выбора нет";
+                return;
+            }
+
+            // перемещаем в случайное место
+            const btnRect = noBtn.getBoundingClientRect();
+            const maxX = window.innerWidth - btnRect.width - 20;
+            const maxY = window.innerHeight - btnRect.height - 20;
+            const minX = 20, minY = 60;
+            noBtn.style.left = Math.random() * (maxX - minX) + minX + 'px';
+            noBtn.style.top = Math.random() * (maxY - minY) + minY + 'px';
+            noBtn.style.transform = 'none';
+        });
+
+        // функция для кнопки ДА
+        window.accept = function() {
+            document.getElementById("main").innerHTML = `
+            <div class="card">
+                <h2>Поздравляю!</h2>
+                <p>
+                С днём смерти Чикатило<br>
+                С днём случайно найденных денег<br>
+                С днём существования котов<br>
+                С днём когда всё не так плохо
+                </p>
+                <button class="next" onclick="nextPage()">➜</button>
+            </div>`;
+        };
+
+        // вторая страница
+        window.nextPage = function() {
+            document.getElementById("main").innerHTML = `
+            <div class="card">
+                <h2>С Днём святого Валентина 🤍</h2>
+                <p>
+                Мы знакомы всего месяц,<br>
+                но я правда рад, что он прошёл именно так.
+                <br><br>
+                Спасибо тебе за общение, лёгкость
+                и то спокойствие, которое появляется рядом с тобой.
+                <br><br>
+                Пусть впереди будет ещё много хороших моментов.
+                </p>
+            </div>`;
+        };
+
+        // при загрузке установим кнопку "Нет" в более-менее удобное место (чтобы не перекрывала "Да")
+        window.addEventListener('load', function() {
+            if (noBtn) {
+                // ставим её правее и ниже кнопки "Да"
+                noBtn.style.left = '220px';
+                noBtn.style.top = '300px';
+                noBtn.style.transform = 'none';
+            }
+        });
+
+    })();
+</script>
+</body>
+</html>
